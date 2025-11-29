@@ -1,5 +1,4 @@
 <?php
-// app/Http/Controllers/PlayerController.php
 
 namespace App\Http\Controllers;
 
@@ -15,6 +14,12 @@ class PlayerController extends Controller
     public function index(Request $request)
     {
         $query = Player::with('user');
+
+        // ✅ FILTRAGE PAR ÉQUIPE DU COACH
+        $user = auth()->user();
+        if ($user->role === 'coach' && $user->team) {
+            $query->where('team', $user->team);
+        }
 
         // Filters
         if ($request->has('status')) {
@@ -60,6 +65,7 @@ class PlayerController extends Controller
             'emergency_phone' => 'nullable|string',
             'photo' => 'nullable|image|max:2048',
             'cv_pdf' => 'nullable|mimes:pdf|max:5120',
+            'team' => 'required|in:U18 Masculin,Seniors Féminin,Seniors Masculin,U18 Féminin,U15 Masculin,U15 Féminin', // ✅ AJOUTÉ
         ]);
 
         if ($validator->fails()) {
@@ -100,6 +106,7 @@ class PlayerController extends Controller
             'address' => $request->address,
             'emergency_contact' => $request->emergency_contact,
             'emergency_phone' => $request->emergency_phone,
+            'team' => $request->team, // ✅ AJOUTÉ
         ]);
 
         $player->load('user');
@@ -113,7 +120,13 @@ class PlayerController extends Controller
     public function show($id)
     {
         $player = Player::with(['user', 'attendances.trainingSession', 'matches'])
-                        ->findOrFail($id);
+            ->findOrFail($id);
+
+        // ✅ VÉRIFIER SI LE COACH A ACCÈS À CE JOUEUR
+        $user = auth()->user();
+        if ($user->role === 'coach' && $user->team && $player->team !== $user->team) {
+            return response()->json(['error' => 'Accès refusé'], 403);
+        }
 
         $player->attendance_rate = $player->getAttendanceRate();
         $player->average_performance = $player->getAveragePerformance();
@@ -124,6 +137,11 @@ class PlayerController extends Controller
     public function update(Request $request, $id)
     {
         $player = Player::findOrFail($id);
+
+        // ✅ SEUL L'ADMIN PEUT MODIFIER
+        if (auth()->user()->role !== 'admin') {
+            return response()->json(['error' => 'Seul l\'admin peut modifier un joueur'], 403);
+        }
 
         $validator = Validator::make($request->all(), [
             'first_name' => 'sometimes|string',
@@ -136,6 +154,7 @@ class PlayerController extends Controller
             'status' => 'sometimes|in:active,injured,suspended',
             'photo' => 'nullable|image|max:2048',
             'cv_pdf' => 'nullable|mimes:pdf|max:5120',
+            'team' => 'sometimes|in:U18 Masculin,Seniors Féminin,Seniors Masculin,U18 Féminin,U15 Masculin,U15 Féminin',
         ]);
 
         if ($validator->fails()) {
@@ -174,6 +193,11 @@ class PlayerController extends Controller
 
     public function destroy($id)
     {
+        // ✅ SEUL L'ADMIN PEUT SUPPRIMER
+        if (auth()->user()->role !== 'admin') {
+            return response()->json(['error' => 'Seul l\'admin peut supprimer un joueur'], 403);
+        }
+
         $player = Player::findOrFail($id);
 
         // Delete files

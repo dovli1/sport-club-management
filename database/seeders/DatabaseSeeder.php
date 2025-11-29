@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Models\Player;
 use App\Models\TrainingSession;
 use App\Models\Attendance;
-use App\Models\Matchs;  // ← Changé de Match à Matchs
+use App\Models\Matchs;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Hash;
 
@@ -16,107 +16,174 @@ class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create Admin
+        // ✅ 1. Create Admin
         $admin = User::create([
             'name' => 'Admin User',
             'email' => 'admin@club.com',
             'password' => Hash::make('password'),
             'role' => 'admin',
+            'team' => null, // Admin n'a pas d'équipe spécifique
             'phone' => '0600000001',
             'is_active' => true,
         ]);
 
-        // Create Coaches
-        $coach1 = User::create([
-            'name' => 'Coach Mohamed',
-            'email' => 'coach1@club.com',
-            'password' => Hash::make('password'),
-            'role' => 'coach',
-            'phone' => '0600000002',
-            'is_active' => true,
-        ]);
+        // ✅ 2. Create Coaches avec équipes assignées
+        $teams = [
+            'U18 Masculin',
+            'Seniors Féminin',
+            'Seniors Masculin',
+            'U18 Féminin',
+            'U15 Masculin',
+            'U15 Féminin',
+        ];
 
-        $coach2 = User::create([
-            'name' => 'Coach Ahmed',
-            'email' => 'coach2@club.com',
-            'password' => Hash::make('password'),
-            'role' => 'coach',
-            'phone' => '0600000003',
-            'is_active' => true,
-        ]);
+        $coaches = [];
+        $coachNames = [
+            ['Mohamed Bennani', 'U18 Masculin'],
+            ['Ahmed Ziani', 'Seniors Masculin'],
+            ['Fatima Alaoui', 'Seniors Féminin'],
+            ['Samira El Amrani', 'U18 Féminin'],
+            ['Youssef Kadiri', 'U15 Masculin'],
+            ['Latifa Bouchaib', 'U15 Féminin'],
+        ];
 
-        // Create Players
-        $playerNames = [
-            ['Yassine', 'Bounou', 'goalkeeper'],
-            ['Achraf', 'Hakimi', 'defender'],
-            ['Noussair', 'Mazraoui', 'defender'],
-            ['Romain', 'Saiss', 'defender'],
-            ['Sofyan', 'Amrabat', 'midfielder'],
-            ['Azzedine', 'Ounahi', 'midfielder'],
-            ['Hakim', 'Ziyech', 'midfielder'],
-            ['Youssef', 'En-Nesyri', 'forward'],
-            ['Zakaria', 'Aboukhlal', 'forward'],
-            ['Ilias', 'Chair', 'forward'],
+        foreach ($coachNames as $index => $coachData) {
+            $coaches[] = User::create([
+                'name' => $coachData[0],
+                'email' => 'coach' . ($index + 1) . '@club.com',
+                'password' => Hash::make('password'),
+                'role' => 'coach',
+                'team' => $coachData[1], // ✅ Équipe assignée
+                'phone' => '060000000' . ($index + 2),
+                // 'speciality' => 'Entraîneur ' . $coachData[1],
+                'is_active' => true,
+            ]);
+        }
+
+        // ✅ 3. Create Players répartis dans les équipes
+        $playersByTeam = [
+            'U18 Masculin' => [
+                ['Youssef', 'Benali', 'Passeur', 17],
+                ['Amine', 'El Idrissi', 'Réceptionneur-Attaquant', 18],
+                ['Karim', 'Fassi', 'Central', 17],
+                ['Rachid', 'Bouchaib', 'Central', 18],
+                ['Sami', 'El Amrani', 'Réceptionneur-Attaquant', 17],
+            ],
+            'Seniors Masculin' => [
+                ['Adil', 'Ouhbi', 'Opposé', 24],
+                ['Hakim', 'Ziyad', 'Opposé', 26],
+                ['Yassir', 'El Khattabi', 'Libéro', 25],
+                ['Nabil', 'Bouazizi', 'Réceptionneur-Attaquant', 23],
+                ['Imad', 'Cherif', 'Passeur', 27],
+            ],
+            'Seniors Féminin' => [
+                ['Fatima', 'Zahra', 'Passeur', 22],
+                ['Meryem', 'Alami', 'Central', 24],
+                ['Khadija', 'Bennani', 'Libéro', 23],
+                ['Sanaa', 'Idrissi', 'Attaquant', 25],
+                ['Nadia', 'Fassi', 'Opposé', 26],
+            ],
+            'U18 Féminin' => [
+                ['Amal', 'Tazi', 'Passeur', 17],
+                ['Salma', 'Kadiri', 'Central', 18],
+                ['Imane', 'Berrada', 'Libéro', 17],
+                ['Houda', 'Chraibi', 'Attaquant', 18],
+            ],
+            'U15 Masculin' => [
+                ['Omar', 'Alaoui', 'Passeur', 14],
+                ['Anas', 'Benchekroun', 'Central', 15],
+                ['Mehdi', 'Lahlou', 'Libéro', 14],
+                ['Zakaria', 'Tounsi', 'Attaquant', 15],
+            ],
+            'U15 Féminin' => [
+                ['Yasmine', 'Idrissi', 'Passeur', 14],
+                ['Sara', 'Benmoussa', 'Central', 15],
+                ['Hajar', 'Tazi', 'Libéro', 14],
+                ['Amina', 'Berrada', 'Attaquant', 15],
+            ],
         ];
 
         $players = [];
-        foreach ($playerNames as $index => $playerData) {
-            $user = User::create([
-                'name' => $playerData[0] . ' ' . $playerData[1],
-                'email' => strtolower($playerData[0]) . '@club.com',
-                'password' => Hash::make('password'),
-                'role' => 'player',
-                'phone' => '06' . str_pad($index + 10, 8, '0', STR_PAD_LEFT),
-                'is_active' => true,
-            ]);
+        $playerIndex = 1;
 
-            $player = Player::create([
-                'user_id' => $user->id,
-                'first_name' => $playerData[0],
-                'last_name' => $playerData[1],
-                'date_of_birth' => now()->subYears(rand(20, 30)),
-                'position' => $playerData[2],
-                'jersey_number' => $index + 1,
-                'status' => 'active',
-            ]);
+        foreach ($playersByTeam as $team => $teamPlayers) {
+            foreach ($teamPlayers as $playerData) {
+                $firstName = $playerData[0];
+                $lastName = $playerData[1];
+                $position = $playerData[2];
+                $age = $playerData[3];
 
-            $players[] = $player;
-        }
-
-        // Create Training Sessions
-        for ($i = 0; $i < 10; $i++) {
-            $training = TrainingSession::create([
-                'coach_id' => rand(0, 1) ? $coach1->id : $coach2->id,
-                'title' => 'Training Session ' . ($i + 1),
-                'description' => 'Regular training focusing on fitness and tactics',
-                'date' => now()->subDays(rand(1, 30)),
-                'start_time' => '10:00:00',
-                'end_time' => '12:00:00',
-                'location' => 'Main Stadium',
-                'status' => $i < 7 ? 'completed' : 'scheduled',
-            ]);
-
-            // Create attendances for each player
-            foreach ($players as $player) {
-                Attendance::create([
-                    'training_session_id' => $training->id,
-                    'player_id' => $player->id,
-                    'status' => rand(0, 10) > 2 ? 'present' : 'absent',
-                    'performance_score' => $training->status === 'completed' ? rand(5, 10) : null,
-                    'remarks' => rand(0, 10) > 8 ? 'Good performance' : null,
+                $user = User::create([
+                    'name' => $firstName . ' ' . $lastName,
+                    'email' => strtolower($firstName) . '@club.com',
+                    'password' => Hash::make('password'),
+                    'role' => 'player',
+                    'phone' => '06' . str_pad($playerIndex + 10, 8, '0', STR_PAD_LEFT),
+                    'is_active' => true,
                 ]);
+
+                $player = Player::create([
+                    'user_id' => $user->id,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'date_of_birth' => now()->subYears($age),
+                    'position' => $position,
+                    'jersey_number' => $playerIndex,
+                    'team' => $team, // ✅ Équipe assignée
+                    'status' => 'active',
+                ]);
+
+                $players[$team][] = $player;
+                $playerIndex++;
             }
         }
 
-        // Create Matches
-        $opponents = ['FC Barcelona', 'Real Madrid', 'Manchester City', 'Bayern Munich', 'Paris SG'];
+        // ✅ 4. Create Training Sessions (par équipe)
+        foreach ($coaches as $coach) {
+            if (!$coach->team) continue;
+
+            for ($i = 0; $i < 5; $i++) {
+                $training = TrainingSession::create([
+                    'coach_id' => $coach->id,
+                    'title' => 'Entraînement ' . $coach->team . ' #' . ($i + 1),
+                    'description' => 'Entraînement régulier - Technique et tactique',
+                    'date' => now()->subDays(rand(1, 30)),
+                    'start_time' => '10:00:00',
+                    'end_time' => '12:00:00',
+                    'location' => 'Gymnase Principal',
+                    'status' => $i < 3 ? 'completed' : 'scheduled',
+                ]);
+
+                // Créer les présences uniquement pour les joueurs de cette équipe
+                if (isset($players[$coach->team])) {
+                    foreach ($players[$coach->team] as $player) {
+                        Attendance::create([
+                            'training_session_id' => $training->id,
+                            'player_id' => $player->id,
+                            'status' => rand(0, 10) > 2 ? 'present' : 'absent',
+                            'performance_score' => $training->status === 'completed' ? rand(5, 10) : null,
+                            'remarks' => rand(0, 10) > 8 ? 'Bonne performance' : null,
+                        ]);
+                    }
+                }
+            }
+        }
+
+        // ✅ 5. Create Matches
+        $opponents = [
+            'Paris Volley',
+            'Lyon Volley',
+            'Marseille VB',
+            'Toulouse Volley',
+            'Bordeaux VB'
+        ];
         
         foreach ($opponents as $index => $opponent) {
-            Matchs::create([  // ← Changé de Match à Matchs
+            Matchs::create([
                 'opponent_team' => $opponent,
                 'match_date' => now()->subDays(rand(1, 60)),
                 'match_time' => '20:00:00',
-                'location' => 'Home Stadium',
+                'location' => 'Stade Principal',
                 'match_type' => 'league',
                 'our_score' => rand(0, 4),
                 'opponent_score' => rand(0, 3),
@@ -126,29 +193,29 @@ class DatabaseSeeder extends Seeder
         }
 
         // Upcoming matches
-        Matchs::create([  // ← Changé de Match à Matchs
-            'opponent_team' => 'Liverpool FC',
+        Matchs::create([
+            'opponent_team' => 'Lille Volley',
             'match_date' => now()->addDays(7),
             'match_time' => '20:00:00',
-            'location' => 'Home Stadium',
+            'location' => 'Stade Principal',
             'match_type' => 'cup',
             'status' => 'scheduled',
         ]);
 
-        // Create Notifications
+        // ✅ 6. Create Notifications
         Notification::create([
             'created_by' => $admin->id,
-            'title' => 'Welcome to Club Management System',
-            'message' => 'Welcome to the new club management platform. Please check your schedule regularly.',
+            'title' => 'Bienvenue sur la plateforme',
+            'message' => 'Bienvenue sur la nouvelle plateforme de gestion du club. Consultez régulièrement votre planning.',
             'type' => 'info',
             'target_role' => 'all',
             'is_active' => true,
         ]);
 
         Notification::create([
-            'created_by' => $coach1->id,
-            'title' => 'Training Tomorrow',
-            'message' => 'Remember, we have an important training session tomorrow at 10 AM.',
+            'created_by' => $coaches[0]->id,
+            'title' => 'Entraînement demain',
+            'message' => 'N\'oubliez pas l\'entraînement important demain à 10h.',
             'type' => 'warning',
             'target_role' => 'player',
             'is_active' => true,
@@ -156,17 +223,33 @@ class DatabaseSeeder extends Seeder
 
         Notification::create([
             'created_by' => $admin->id,
-            'title' => 'Match This Weekend',
-            'message' => 'Important match against Liverpool FC this weekend. Be prepared!',
+            'title' => 'Match ce weekend',
+            'message' => 'Match important contre Lille Volley ce weekend. Soyez prêts !',
             'type' => 'urgent',
             'target_role' => 'all',
             'is_active' => true,
         ]);
 
-        echo "✅ Database seeded successfully!\n";
-        echo "📧 Admin: admin@club.com\n";
-        echo "📧 Coach: coach1@club.com\n";
-        echo "📧 Player: yassine@club.com\n";
-        echo "🔐 Password for all: password\n";
+        // ✅ Affichage des credentials
+        echo "\n✅ Database seeded successfully!\n\n";
+        echo "═══════════════════════════════════════\n";
+        echo "📧 ADMIN\n";
+        echo "   Email: admin@club.com\n";
+        echo "   Password: password\n";
+        echo "═══════════════════════════════════════\n";
+        echo "📧 COACHES\n";
+        foreach ($coaches as $index => $coach) {
+            echo "   Coach " . ($index + 1) . ": coach" . ($index + 1) . "@club.com (Équipe: {$coach->team})\n";
+        }
+        echo "═══════════════════════════════════════\n";
+        echo "📧 PLAYERS (exemples)\n";
+        echo "   youssef@club.com (U18 Masculin)\n";
+        echo "   adil@club.com (Seniors Masculin)\n";
+        echo "   fatima@club.com (Seniors Féminin)\n";
+        echo "   amal@club.com (U18 Féminin)\n";
+        echo "   omar@club.com (U15 Masculin)\n";
+        echo "   yasmine@club.com (U15 Féminin)\n";
+        echo "═══════════════════════════════════════\n";
+        echo "🔐 Password for all: password\n\n";
     }
 }

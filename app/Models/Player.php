@@ -1,5 +1,4 @@
 <?php
-// app/Models/Player.php
 
 namespace App\Models;
 
@@ -23,6 +22,7 @@ class Player extends Model
         'emergency_contact',
         'emergency_phone',
         'status',
+        'team', // ✅ AJOUTÉ
     ];
 
     protected $casts = [
@@ -45,16 +45,16 @@ class Player extends Model
     public function matches()
     {
         return $this->belongsToMany(Matchs::class, 'match_player')
-                    ->withPivot([
-                        'is_starter',
-                        'minutes_played',
-                        'goals',
-                        'assists',
-                        'yellow_cards',
-                        'red_cards',
-                        'rating'
-                    ])
-                    ->withTimestamps();
+            ->withPivot([
+                'is_starter',
+                'minutes_played',
+                'goals',
+                'assists',
+                'yellow_cards',
+                'red_cards',
+                'rating'
+            ])
+            ->withTimestamps();
     }
 
     // Accessors
@@ -73,18 +73,18 @@ class Player extends Model
     {
         $total = $this->attendances()->count();
         if ($total === 0) return 0;
-        
+
         $present = $this->attendances()
-                        ->whereIn('status', ['present', 'late'])
-                        ->count();
-        
+            ->whereIn('status', ['present', 'late'])
+            ->count();
+
         return round(($present / $total) * 100, 2);
     }
 
     public function getAveragePerformance()
     {
         return $this->attendances()
-                    ->whereNotNull('performance_score')
-                    ->avg('performance_score');
+            ->whereNotNull('performance_score')
+            ->avg('performance_score');
     }
 }

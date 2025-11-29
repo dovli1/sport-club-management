@@ -1,11 +1,11 @@
 <?php
-// app/Models/User.php
 
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\Storage;
 use PHPOpenSourceSaver\JWTAuth\Contracts\JWTSubject;
 
 class User extends Authenticatable implements JWTSubject
@@ -17,8 +17,10 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'role',
+        'team', // ✅ AJOUTÉ
         'phone',
         'avatar',
+        'speciality',
         'is_active',
     ];
 
@@ -31,6 +33,8 @@ class User extends Authenticatable implements JWTSubject
         'email_verified_at' => 'datetime',
         'is_active' => 'boolean',
     ];
+
+    protected $appends = ['avatar_url'];
 
     // JWT Methods
     public function getJWTIdentifier()
@@ -57,13 +61,19 @@ class User extends Authenticatable implements JWTSubject
     public function notifications()
     {
         return $this->belongsToMany(Notification::class, 'notification_user')
-                    ->withPivot('read_at')
-                    ->withTimestamps();
+            ->withPivot('read_at')
+            ->withTimestamps();
     }
 
     public function createdNotifications()
     {
         return $this->hasMany(Notification::class, 'created_by');
+    }
+
+    // Accessors
+    public function getAvatarUrlAttribute()
+    {
+        return $this->avatar ? Storage::url($this->avatar) : null;
     }
 
     // Helper methods
@@ -80,5 +90,26 @@ class User extends Authenticatable implements JWTSubject
     public function isPlayer()
     {
         return $this->role === 'player';
+    }
+
+    // Scope methods
+    public function scopeCoaches($query)
+    {
+        return $query->where('role', 'coach');
+    }
+
+    public function scopePlayers($query)
+    {
+        return $query->where('role', 'player');
+    }
+
+    public function scopeAdmins($query)
+    {
+        return $query->where('role', 'admin');
+    }
+
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }
