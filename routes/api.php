@@ -31,22 +31,12 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
     // Dashboard - All authenticated users
-    // Dashboard routes
+    Route::get('dashboard/stats', [DashboardController::class, 'getStats']);
+    Route::get('dashboard/attendance-report', [DashboardController::class, 'getAttendanceReport']);
+    Route::get('dashboard/performance-report', [DashboardController::class, 'getPerformanceReport']);
+    Route::get('dashboard/match-stats', [DashboardController::class, 'getMatchStats']);
+    Route::get('dashboard/top-players', [DashboardController::class, 'getTopPlayers']);
 
-    Route::prefix('dashboard')->group(function () {
-    // Admin routes
-    Route::get('/stats', [DashboardController::class, 'getGlobalStats']);
-    Route::get('/attendance-report', [DashboardController::class, 'getAttendanceReport']);
-    Route::get('/performance-report', [DashboardController::class, 'getPerformanceReport']);
-    Route::get('/match-stats', [DashboardController::class, 'getMatchStats']);
-    Route::get('/top-players', [DashboardController::class, 'getTopPlayers']);
-    
-    // Coach routes
-    Route::get('/coach-stats', [DashboardController::class, 'getCoachStats']);
-    
-    // Player routes
-    Route::get('/player-stats', [DashboardController::class, 'getPlayerStats']);
-     });
     // Players - Admin and Coach can manage, Players can view
     Route::get('players', [PlayerController::class, 'index']);
     Route::get('players/{id}', [PlayerController::class, 'show']);
