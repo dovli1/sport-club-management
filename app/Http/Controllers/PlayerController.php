@@ -47,7 +47,7 @@ class PlayerController extends Controller
                 'name' => $player->first_name . ' ' . $player->last_name,
                 'email' => $player->user->email ?? '',
                 'phone' => $player->user->phone ?? '',
-                'age' => $player->age ?? $player->date_of_birth->age ?? null,
+                'age' => $player->date_of_birth ? now()->diffInYears($player->date_of_birth) : null,
                 'team' => $player->team,
                 'position' => $player->position,
                 'number' => $player->jersey_number,
@@ -79,7 +79,7 @@ class PlayerController extends Controller
             'name' => $player->first_name . ' ' . $player->last_name,
             'email' => $player->user->email ?? '',
             'phone' => $player->user->phone ?? '',
-            'age' => $player->date_of_birth ? $player->date_of_birth->age : null,
+            'age' => $player->date_of_birth ? now()->diffInYears($player->date_of_birth) : null,
             'team' => $player->team,
             'position' => $player->position,
             'number' => $player->jersey_number,
@@ -114,22 +114,21 @@ class PlayerController extends Controller
         return response()->json($playerData);
     }
 
-    // ✅ STORE - Créer un joueur
+    // ✅ STORE - Créer un joueur (SEULEMENT age)
     public function store(Request $request)
     {
         try {
             Log::info('Player Creation Request:', $request->all());
 
+            // ✅ VALIDATION AVEC age SEULEMENT
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email|unique:users,email',
                 'password' => 'required|min:6',
-                'name' => 'required|string',
-                'age' => 'required|integer|min:10|max:100',
+                'name' => 'required|string|min:2',
+                'age' => 'required|integer|min:10|max:100', // ✅ SEULEMENT age
                 'position' => 'required|string',
                 'number' => 'required|integer|unique:players,jersey_number',
                 'phone' => 'nullable|string',
-                'photo' => 'nullable|image|max:2048',
-                'cv' => 'nullable|mimes:pdf|max:5120',
                 'team' => 'required|string|in:U18 Masculin,Seniors Féminin,Seniors Masculin,U18 Féminin,U15 Masculin,U15 Féminin',
             ]);
 
@@ -141,12 +140,12 @@ class PlayerController extends Controller
                 ], 422);
             }
 
-            // ✅ Séparer le nom
+            // ✅ SÉPARER LE NOM
             $nameParts = explode(' ', $request->name, 2);
             $firstName = $nameParts[0];
             $lastName = $nameParts[1] ?? $nameParts[0];
 
-            // ✅ Créer l'utilisateur
+            // ✅ CRÉER L'UTILISATEUR
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -156,38 +155,24 @@ class PlayerController extends Controller
                 'is_active' => true,
             ]);
 
-            // ✅ Gérer les fichiers
-            $photoPath = null;
-            $cvPath = null;
-
-            if ($request->hasFile('photo')) {
-                $photoPath = $request->file('photo')->store('players/photos', 'public');
-            }
-
-            if ($request->hasFile('cv')) {
-                $cvPath = $request->file('cv')->store('players/cvs', 'public');
-            }
-
-            // ✅ Date de naissance
+            // ✅ CALCULER date_of_birth À PARTIR DE age (pour la base de données)
             $dateOfBirth = now()->subYears($request->age);
 
-            // ✅ Créer le joueur
+            // ✅ CRÉER LE JOUEUR
             $player = Player::create([
                 'user_id' => $user->id,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'date_of_birth' => $dateOfBirth,
+                'date_of_birth' => $dateOfBirth, // ← Stocké en base mais pas demandé à l'utilisateur
                 'position' => $request->position,
                 'jersey_number' => $request->number,
-                'photo' => $photoPath,
-                'cv_pdf' => $cvPath,
                 'team' => $request->team,
                 'status' => 'active',
             ]);
 
             Log::info('Player Created Successfully:', ['player_id' => $player->id]);
 
-            // ✅ Retourner les données formatées
+            // ✅ RETOURNER age (pas date_of_birth)
             return response()->json([
                 'message' => 'Joueur créé avec succès',
                 'player' => [
@@ -195,11 +180,10 @@ class PlayerController extends Controller
                     'name' => $player->first_name . ' ' . $player->last_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
-                    'age' => $request->age,
+                    'age' => $request->age, // ✅ Retourner l'âge donné
                     'team' => $player->team,
                     'position' => $player->position,
                     'number' => $player->jersey_number,
-                    'photo' => $photoPath ? Storage::url($photoPath) : null,
                     'status' => $player->status,
                 ]
             ], 201);
@@ -217,7 +201,7 @@ class PlayerController extends Controller
         }
     }
 
-    // ✅ UPDATE
+    // ✅ UPDATE - Mettre à jour un joueur
     public function update(Request $request, $id)
     {
         try {
@@ -230,14 +214,12 @@ class PlayerController extends Controller
             Log::info('Player Update Request:', $request->all());
 
             $validator = Validator::make($request->all(), [
-                'name' => 'sometimes|string',
+                'name' => 'sometimes|string|min:2',
                 'age' => 'sometimes|integer|min:10|max:100',
                 'position' => 'nullable|string',
                 'number' => 'nullable|integer|unique:players,jersey_number,'.$id,
                 'phone' => 'nullable|string',
                 'status' => 'sometimes|in:active,injured,suspended',
-                'photo' => 'nullable|image|max:2048',
-                'cv' => 'nullable|mimes:pdf|max:5120',
                 'team' => 'sometimes|string',
             ]);
 
@@ -248,21 +230,6 @@ class PlayerController extends Controller
                 ], 422);
             }
 
-            // Gérer les fichiers
-            if ($request->hasFile('photo')) {
-                if ($player->photo) {
-                    Storage::disk('public')->delete($player->photo);
-                }
-                $player->photo = $request->file('photo')->store('players/photos', 'public');
-            }
-
-            if ($request->hasFile('cv')) {
-                if ($player->cv_pdf) {
-                    Storage::disk('public')->delete($player->cv_pdf);
-                }
-                $player->cv_pdf = $request->file('cv')->store('players/cvs', 'public');
-            }
-
             // Mettre à jour le nom
             if ($request->has('name')) {
                 $nameParts = explode(' ', $request->name, 2);
@@ -271,11 +238,17 @@ class PlayerController extends Controller
                 $player->user->update(['name' => $request->name]);
             }
 
+            // Mettre à jour l'âge
             if ($request->has('age')) {
                 $player->date_of_birth = now()->subYears($request->age);
             }
 
-            $player->update($request->except(['photo', 'cv', 'name', 'age']));
+            // Mettre à jour les autres champs
+            $player->position = $request->position ?? $player->position;
+            $player->jersey_number = $request->number ?? $player->jersey_number;
+            $player->team = $request->team ?? $player->team;
+            $player->status = $request->status ?? $player->status;
+            $player->save();
 
             if ($request->has('phone')) {
                 $player->user->update(['phone' => $request->phone]);
@@ -306,7 +279,7 @@ class PlayerController extends Controller
         }
     }
 
-    // ✅ DELETE
+    // ✅ DELETE - Supprimer un joueur
     public function destroy($id)
     {
         if (auth()->user()->role !== 'admin') {

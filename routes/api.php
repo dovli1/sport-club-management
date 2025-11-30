@@ -22,7 +22,7 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
-    // ✅ DASHBOARD ROUTES (NOUVEAU)
+    // ✅ DASHBOARD ROUTES
     Route::prefix('dashboard')->group(function () {
         // Admin Dashboard
         Route::get('admin/stats', [DashboardController::class, 'getAdminStats'])
@@ -39,7 +39,7 @@ Route::middleware('auth:api')->group(function () {
 
     // Players
     Route::get('players', [PlayerController::class, 'index']);
-    Route::get('players/{id}', [PlayerController::class, 'show']); // ✅ IMPORTANT
+    Route::get('players/{id}', [PlayerController::class, 'show']);
     
     Route::middleware('role:admin,coach')->group(function () {
         Route::post('players', [PlayerController::class, 'store']);
@@ -49,8 +49,8 @@ Route::middleware('auth:api')->group(function () {
     Route::middleware('role:admin')->group(function () {
         Route::delete('players/{id}', [PlayerController::class, 'destroy']);
     });
-});
-    // Training Sessions
+
+    // Training Sessions  ← ✅ MAINTENANT À L'INTÉRIEUR DU GROUP !
     Route::get('trainings', [TrainingSessionController::class, 'index']);
     Route::get('trainings/{id}', [TrainingSessionController::class, 'show']);
 
@@ -94,6 +94,8 @@ Route::middleware('auth:api')->group(function () {
         Route::put('coaches/{id}', [CoachController::class, 'update']);
         Route::delete('coaches/{id}', [CoachController::class, 'destroy']);
     });
+
+}); // ← ✅ ACCOLADE FERMANTE CORRECTE POUR LE GROUPE PRINCIPAL
 
 // Health check
 Route::get('health', function() {
