@@ -1,5 +1,4 @@
 <?php
-// app/Models/TrainingSession.php
 
 namespace App\Models;
 
@@ -39,8 +38,8 @@ class TrainingSession extends Model
     public function players()
     {
         return $this->belongsToMany(Player::class, 'attendances')
-                    ->withPivot(['status', 'performance_score', 'remarks'])
-                    ->withTimestamps();
+            ->withPivot(['status', 'performance_score', 'remarks'])
+            ->withTimestamps();
     }
 
     // Helper methods
@@ -48,18 +47,18 @@ class TrainingSession extends Model
     {
         $total = $this->attendances()->count();
         if ($total === 0) return 0;
-        
+
         $present = $this->attendances()
-                        ->whereIn('status', ['present', 'late'])
-                        ->count();
-        
+            ->whereIn('status', ['present', 'late'])
+            ->count();
+
         return round(($present / $total) * 100, 2);
     }
 
     public function getAveragePerformance()
     {
         return $this->attendances()
-                    ->whereNotNull('performance_score')
-                    ->avg('performance_score');
+            ->whereNotNull('performance_score')
+            ->avg('performance_score');
     }
 }
