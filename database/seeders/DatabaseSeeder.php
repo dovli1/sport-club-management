@@ -28,6 +28,15 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // ✅ 2. Create Coaches avec équipes assignées
+        $teams = [
+            'U18 Masculin',
+            'Seniors Féminin',
+            'Seniors Masculin',
+            'U18 Féminin',
+            'U15 Masculin',
+            'U15 Féminin',3333333.
+        ];
+
         $coaches = [];
         $coachNames = [
             ['Mohamed Bennani', 'U18 Masculin'],
@@ -46,6 +55,7 @@ class DatabaseSeeder extends Seeder
                 'role' => 'coach',
                 'team' => $coachData[1], // ✅ Équipe assignée
                 'phone' => '060000000' . ($index + 2),
+                // 'speciality' => 'Entraîneur ' . $coachData[1],
                 'is_active' => true,
             ]);
         }
@@ -116,7 +126,7 @@ class DatabaseSeeder extends Seeder
                     'user_id' => $user->id,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
-                    'date_of_birth' => now()->subYears($age),
+                    'age' => $age,
                     'position' => $position,
                     'jersey_number' => $playerIndex,
                     'team' => $team, // ✅ Équipe assignée

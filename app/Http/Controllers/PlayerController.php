@@ -47,7 +47,7 @@ class PlayerController extends Controller
                 'name' => $player->first_name . ' ' . $player->last_name,
                 'email' => $player->user->email ?? '',
                 'phone' => $player->user->phone ?? '',
-                'age' => $player->date_of_birth ? now()->diffInYears($player->date_of_birth) : null,
+                'age' => $player->age,
                 'team' => $player->team,
                 'position' => $player->position,
                 'number' => $player->jersey_number,
@@ -79,7 +79,7 @@ class PlayerController extends Controller
             'name' => $player->first_name . ' ' . $player->last_name,
             'email' => $player->user->email ?? '',
             'phone' => $player->user->phone ?? '',
-            'age' => $player->date_of_birth ? now()->diffInYears($player->date_of_birth) : null,
+            'age' => $player->age,
             'team' => $player->team,
             'position' => $player->position,
             'number' => $player->jersey_number,
@@ -114,21 +114,22 @@ class PlayerController extends Controller
         return response()->json($playerData);
     }
 
-    // ✅ STORE - Créer un joueur (SEULEMENT age)
+    // ✅ STORE - Créer un joueur
     public function store(Request $request)
     {
         try {
             Log::info('Player Creation Request:', $request->all());
 
-            // ✅ VALIDATION AVEC age SEULEMENT
             $validator = Validator::make($request->all(), [
                 'email' => 'required|email|unique:users,email',
                 'password' => 'required|min:6',
-                'name' => 'required|string|min:2',
-                'age' => 'required|integer|min:10|max:100', // ✅ SEULEMENT age
+                'name' => 'required|string',
+                'age' => 'required|integer|min:10|max:100',
                 'position' => 'required|string',
                 'number' => 'required|integer|unique:players,jersey_number',
                 'phone' => 'nullable|string',
+                'photo' => 'nullable',
+                'cv' => 'nullable|mimes:pdf|max:5120',
                 'team' => 'required|string|in:U18 Masculin,Seniors Féminin,Seniors Masculin,U18 Féminin,U15 Masculin,U15 Féminin',
             ]);
 
@@ -140,12 +141,12 @@ class PlayerController extends Controller
                 ], 422);
             }
 
-            // ✅ SÉPARER LE NOM
+            // ✅ Séparer le nom
             $nameParts = explode(' ', $request->name, 2);
             $firstName = $nameParts[0];
             $lastName = $nameParts[1] ?? $nameParts[0];
 
-            // ✅ CRÉER L'UTILISATEUR
+            // ✅ Créer l'utilisateur
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
@@ -155,24 +156,48 @@ class PlayerController extends Controller
                 'is_active' => true,
             ]);
 
-            // ✅ CALCULER date_of_birth À PARTIR DE age (pour la base de données)
-            $dateOfBirth = now()->subYears($request->age);
+            // ✅ Gérer les fichiers
+            $photoPath = null;
+            $cvPath = null;
 
-            // ✅ CRÉER LE JOUEUR
+            if ($request->hasFile('photo')) {
+                $photoPath = $request->file('photo')->store('players/photos', 'public');
+            } elseif ($request->has('photo') && is_string($request->photo)) {
+                $photoPath = $request->photo; // URL string
+            }
+
+            if ($request->hasFile('cv')) {
+                $cvPath = $request->file('cv')->store('players/cvs', 'public');
+            }
+
+            // ✅ Créer le joueur
             $player = Player::create([
                 'user_id' => $user->id,
                 'first_name' => $firstName,
                 'last_name' => $lastName,
-                'date_of_birth' => $dateOfBirth, // ← Stocké en base mais pas demandé à l'utilisateur
+                'age' => $request->age,
                 'position' => $request->position,
                 'jersey_number' => $request->number,
+                'photo' => $photoPath,
+                'cv_pdf' => $cvPath,
                 'team' => $request->team,
                 'status' => 'active',
             ]);
 
             Log::info('Player Created Successfully:', ['player_id' => $player->id]);
 
-            // ✅ RETOURNER age (pas date_of_birth)
+            // ✅ Vérifier que les données sont bien sauvegardées
+            $savedPlayer = Player::find($player->id);
+            $savedUser = User::find($user->id);
+
+            Log::info('Verification - Player saved:', [
+                'player_exists' => $savedPlayer ? 'YES' : 'NO',
+                'user_exists' => $savedUser ? 'YES' : 'NO',
+                'player_data' => $savedPlayer ? $savedPlayer->toArray() : null,
+                'user_data' => $savedUser ? $savedUser->toArray() : null,
+            ]);
+
+            // ✅ Retourner les données formatées
             return response()->json([
                 'message' => 'Joueur créé avec succès',
                 'player' => [
@@ -180,10 +205,11 @@ class PlayerController extends Controller
                     'name' => $player->first_name . ' ' . $player->last_name,
                     'email' => $user->email,
                     'phone' => $user->phone,
-                    'age' => $request->age, // ✅ Retourner l'âge donné
+                    'age' => $request->age,
                     'team' => $player->team,
                     'position' => $player->position,
                     'number' => $player->jersey_number,
+                    'photo' => $photoPath ? Storage::url($photoPath) : null,
                     'status' => $player->status,
                 ]
             ], 201);
@@ -201,25 +227,33 @@ class PlayerController extends Controller
         }
     }
 
-    // ✅ UPDATE - Mettre à jour un joueur
+    // ✅ UPDATE
     public function update(Request $request, $id)
     {
         try {
             $player = Player::findOrFail($id);
+            $user = auth()->user();
 
-            if (auth()->user()->role !== 'admin') {
+            // Check permissions: admin can edit all, coach can only edit players from their team
+            if ($user->role !== 'admin' && $user->role !== 'coach') {
                 return response()->json(['error' => 'Accès refusé'], 403);
+            }
+
+            if ($user->role === 'coach' && $user->team && $player->team !== $user->team) {
+                return response()->json(['error' => 'Vous ne pouvez modifier que les joueurs de votre équipe'], 403);
             }
 
             Log::info('Player Update Request:', $request->all());
 
             $validator = Validator::make($request->all(), [
-                'name' => 'sometimes|string|min:2',
+                'name' => 'sometimes|string',
                 'age' => 'sometimes|integer|min:10|max:100',
                 'position' => 'nullable|string',
                 'number' => 'nullable|integer|unique:players,jersey_number,'.$id,
                 'phone' => 'nullable|string',
                 'status' => 'sometimes|in:active,injured,suspended',
+                'photo' => 'nullable',
+                'cv' => 'nullable|mimes:pdf|max:5120',
                 'team' => 'sometimes|string',
             ]);
 
@@ -230,6 +264,24 @@ class PlayerController extends Controller
                 ], 422);
             }
 
+            // Gérer les fichiers
+            if ($request->hasFile('photo')) {
+                if ($player->photo) {
+                    Storage::disk('public')->delete($player->photo);
+                }
+                $player->photo = $request->file('photo')->store('players/photos', 'public');
+            } elseif ($request->has('photo') && is_string($request->photo)) {
+                // If it's a string URL, just set it directly
+                $player->photo = $request->photo;
+            }
+
+            if ($request->hasFile('cv')) {
+                if ($player->cv_pdf) {
+                    Storage::disk('public')->delete($player->cv_pdf);
+                }
+                $player->cv_pdf = $request->file('cv')->store('players/cvs', 'public');
+            }
+
             // Mettre à jour le nom
             if ($request->has('name')) {
                 $nameParts = explode(' ', $request->name, 2);
@@ -238,17 +290,11 @@ class PlayerController extends Controller
                 $player->user->update(['name' => $request->name]);
             }
 
-            // Mettre à jour l'âge
             if ($request->has('age')) {
-                $player->date_of_birth = now()->subYears($request->age);
+                $player->age = $request->age;
             }
 
-            // Mettre à jour les autres champs
-            $player->position = $request->position ?? $player->position;
-            $player->jersey_number = $request->number ?? $player->jersey_number;
-            $player->team = $request->team ?? $player->team;
-            $player->status = $request->status ?? $player->status;
-            $player->save();
+            $player->update($request->except(['photo', 'cv', 'name', 'age']));
 
             if ($request->has('phone')) {
                 $player->user->update(['phone' => $request->phone]);
@@ -279,14 +325,20 @@ class PlayerController extends Controller
         }
     }
 
-    // ✅ DELETE - Supprimer un joueur
+    // ✅ DELETE
     public function destroy($id)
     {
-        if (auth()->user()->role !== 'admin') {
+        $player = Player::findOrFail($id);
+        $user = auth()->user();
+
+        // Check permissions: admin can delete all, coach can only delete players from their team
+        if ($user->role !== 'admin' && $user->role !== 'coach') {
             return response()->json(['error' => 'Accès refusé'], 403);
         }
 
-        $player = Player::findOrFail($id);
+        if ($user->role === 'coach' && $user->team && $player->team !== $user->team) {
+            return response()->json(['error' => 'Vous ne pouvez supprimer que les joueurs de votre équipe'], 403);
+        }
 
         if ($player->photo) {
             Storage::disk('public')->delete($player->photo);
