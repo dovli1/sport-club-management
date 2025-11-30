@@ -1,326 +1,277 @@
 <?php
-// app/Http/Controllers/DashboardController.php
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use App\Models\User;
 use App\Models\Player;
 use App\Models\TrainingSession;
 use App\Models\Attendance;
-use App\Models\Match;
+use App\Models\Matchs;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class DashboardController extends Controller
 {
-    /**
-     * Get global statistics for admin dashboard
-     */
-    public function getGlobalStats()
+    // ✅ STATS POUR ADMIN
+    public function getAdminStats(Request $request)
     {
-        try {
-            $totalPlayers = Player::count();
-            $totalTrainings = TrainingSession::count();
-            $totalMatches = Match::count();
-            
-            // Calculate average attendance rate
-            $attendanceData = Attendance::selectRaw('
-                COUNT(*) as total,
-                SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as presents
-            ')->first();
-            
-            $attendanceRate = $attendanceData->total > 0 
-                ? round(($attendanceData->presents / $attendanceData->total) * 100, 1)
-                : 0;
+        $stats = [
+            'players' => [
+                'total' => Player::count(),
+                'active' => Player::where('status', 'active')->count(),
+                'injured' => Player::where('status', 'injured')->count(),
+                'suspended' => Player::where('status', 'suspended')->count(),
+            ],
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'totalPlayers' => $totalPlayers,
-                    'totalTrainings' => $totalTrainings,
-                    'totalMatches' => $totalMatches,
-                    'attendanceRate' => $attendanceRate
-                ]
-            ]);
+            'trainings' => [
+                'total' => TrainingSession::count(),
+                'scheduled' => TrainingSession::where('status', 'scheduled')->count(),
+                'completed' => TrainingSession::where('status', 'completed')->count(),
+                'cancelled' => TrainingSession::where('status', 'cancelled')->count(),
+            ],
 
-        } catch (\Exception $e) {
-            \Log::error('Dashboard stats error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur lors de la récupération des statistiques',
-                'data' => [
-                    'totalPlayers' => 0,
-                    'totalTrainings' => 0,
-                    'totalMatches' => 0,
-                    'attendanceRate' => 0
-                ]
-            ], 500);
-        }
-    }
+            'matches' => [
+                'total' => Matchs::count(),
+                'scheduled' => Matchs::where('status', 'scheduled')->count(),
+                'completed' => Matchs::where('status', 'completed')->count(),
+                'wins' => Matchs::where('result', 'win')->count(),
+                'losses' => Matchs::where('result', 'loss')->count(),
+                'draws' => Matchs::where('result', 'draw')->count(),
+            ],
 
-    /**
-     * Get players by team for bar chart
-     */
-    public function getPerformanceReport()
-    {
-        try {
-            $playersByTeam = Player::select('team', DB::raw('COUNT(*) as count'))
-                ->whereNotNull('team')
-                ->groupBy('team')
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'name' => $item->team,
-                        'joueurs' => $item->count
-                    ];
-                });
+            'attendance' => [
+                'overall_rate' => $this->getOverallAttendanceRate(),
+            ],
 
-            return response()->json([
-                'success' => true,
-                'data' => $playersByTeam
-            ]);
+            'users' => [
+                'total' => User::count(),
+                'admins' => User::where('role', 'admin')->count(),
+                'coaches' => User::where('role', 'coach')->count(),
+                'players' => User::where('role', 'player')->count(),
+            ],
 
-        } catch (\Exception $e) {
-            \Log::error('Performance report error: ' . $e->getMessage());
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
-        }
-    }
-
-    /**
-     * Get attendance evolution for line chart
-     */
-    public function getAttendanceReport()
-    {
-        try {
-            // Get last 6 months data
-            $attendanceData = [];
-            for ($i = 5; $i >= 0; $i--) {
-                $date = now()->subMonths($i);
-                $monthName = $date->locale('fr')->shortMonthName;
-                
-                // Simulate some data for demo
-                $attendanceData[] = [
-                    'mois' => $monthName,
-                    'taux' => rand(75, 95) // Random data for demo
-                ];
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => $attendanceData
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Attendance report error: ' . $e->getMessage());
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    ['mois' => 'Jan', 'taux' => 0],
-                    ['mois' => 'Fév', 'taux' => 0],
-                    ['mois' => 'Mar', 'taux' => 0],
-                    ['mois' => 'Avr', 'taux' => 0],
-                    ['mois' => 'Mai', 'taux' => 0],
-                    ['mois' => 'Juin', 'taux' => 0]
-                ]
-            ]);
-        }
-    }
-
-    /**
-     * Get roles distribution for pie chart
-     */
-    public function getMatchStats()
-    {
-        try {
-            $rolesDistribution = User::select('role', DB::raw('COUNT(*) as count'))
-                ->groupBy('role')
-                ->get()
-                ->map(function($item) {
-                    return [
-                        'name' => $this->formatRoleName($item->role),
-                        'value' => $item->count
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'data' => $rolesDistribution
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Match stats error: ' . $e->getMessage());
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    ['name' => 'Joueurs', 'value' => 0],
-                    ['name' => 'Coaches', 'value' => 0],
-                    ['name' => 'Admins', 'value' => 0]
-                ]
-            ]);
-        }
-    }
-
-    /**
-     * Get top players
-     */
-    public function getTopPlayers()
-    {
-        try {
-            $topPlayers = Attendance::whereNotNull('performance_score')
-                ->select('player_id', DB::raw('AVG(performance_score) as avg_score'))
-                ->with(['player.user'])
-                ->groupBy('player_id')
-                ->orderBy('avg_score', 'desc')
-                ->limit(5)
-                ->get()
-                ->map(function($attendance) {
-                    return [
-                        'id' => $attendance->player_id,
-                        'name' => $attendance->player->user->name ?? 'Inconnu',
-                        'team' => $attendance->player->team ?? 'Non assigné',
-                        'performance' => round($attendance->avg_score, 1)
-                    ];
-                });
-
-            return response()->json([
-                'success' => true,
-                'data' => $topPlayers
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Top players error: ' . $e->getMessage());
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
-        }
-    }
-
-    /**
-     * Format role names for display
-     */
-    private function formatRoleName($role)
-    {
-        $roles = [
-            'admin' => 'Admins',
-            'coach' => 'Coaches', 
-            'player' => 'Joueurs'
+            'teams' => $this->getTeamsStats(),
         ];
+
+        return response()->json($stats);
+    }
+
+    // ✅ STATS POUR COACH
+    public function getCoachStats(Request $request)
+    {
+        $coach = Auth::user();
         
-        return $roles[$role] ?? ucfirst($role);
+        if ($coach->role !== 'coach' || !$coach->team) {
+            return response()->json(['error' => 'Accès refusé'], 403);
+        }
+
+        // Joueurs de son équipe uniquement
+        $teamPlayers = Player::where('team', $coach->team)->get();
+        $playerIds = $teamPlayers->pluck('id');
+
+        // Entraînements du coach
+        $trainings = TrainingSession::where('coach_id', $coach->id)->get();
+        $trainingIds = $trainings->pluck('id');
+
+        $stats = [
+            'team' => $coach->team,
+            
+            'players' => [
+                'total' => $teamPlayers->count(),
+                'active' => $teamPlayers->where('status', 'active')->count(),
+                'injured' => $teamPlayers->where('status', 'injured')->count(),
+                'suspended' => $teamPlayers->where('status', 'suspended')->count(),
+            ],
+
+            'trainings' => [
+                'total' => $trainings->count(),
+                'scheduled' => $trainings->where('status', 'scheduled')->count(),
+                'completed' => $trainings->where('status', 'completed')->count(),
+                'cancelled' => $trainings->where('status', 'cancelled')->count(),
+            ],
+
+            'attendance' => [
+                'overall_rate' => $this->getTeamAttendanceRate($playerIds, $trainingIds),
+            ],
+
+            'performance' => [
+                'average' => $this->getTeamAveragePerformance($playerIds, $trainingIds),
+            ],
+
+            'top_players' => $this->getTopPlayersByTeam($coach->team, 5),
+        ];
+
+        return response()->json($stats);
     }
 
-    /**
-     * Get coach statistics
-     */
-    public function getCoachStats()
+    // ✅ STATS POUR PLAYER
+    public function getPlayerStats(Request $request)
     {
-        try {
-            $coach = auth()->user();
-            $team = $coach->team;
-
-            if (!$team) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Coach non assigné à une équipe'
-                ], 400);
-            }
-
-            $myPlayers = Player::where('team', $team)->count();
-            $recentTrainings = TrainingSession::where('coach_id', $coach->id)
-                ->where('created_at', '>=', now()->subDays(30))
-                ->count();
-
-            // Performance moyenne
-            $avgPerformance = Attendance::whereHas('player', function($query) use ($team) {
-                    $query->where('team', $team);
-                })
-                ->whereNotNull('performance_score')
-                ->avg('performance_score') ?? 0;
-
-            // Taux de présence
-            $attendanceData = Attendance::whereHas('player', function($query) use ($team) {
-                    $query->where('team', $team);
-                })
-                ->selectRaw('
-                    COUNT(*) as total,
-                    SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as presents
-                ')->first();
-
-            $attendanceRate = $attendanceData->total > 0 
-                ? round(($attendanceData->presents / $attendanceData->total) * 100, 1)
-                : 0;
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'myPlayers' => $myPlayers,
-                    'recentTrainings' => $recentTrainings,
-                    'avgPerformance' => round($avgPerformance, 1),
-                    'attendanceRate' => $attendanceRate
-                ]
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error('Coach stats error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur serveur'
-            ], 500);
+        $user = Auth::user();
+        
+        if ($user->role !== 'player' || !$user->player) {
+            return response()->json(['error' => 'Accès refusé'], 403);
         }
+
+        $player = $user->player;
+
+        $stats = [
+            'player' => [
+                'id' => $player->id,
+                'name' => $player->full_name,
+                'team' => $player->team,
+                'position' => $player->position,
+                'jersey_number' => $player->jersey_number,
+            ],
+
+            'trainings_attended' => Attendance::where('player_id', $player->id)
+                ->whereIn('status', ['present', 'late'])
+                ->count(),
+
+            'attendance_rate' => $player->getAttendanceRate(),
+
+            'average_performance' => $player->getAveragePerformance(),
+
+            'recent_performances' => $this->getRecentPerformances($player->id, 10),
+
+            'upcoming_trainings' => $this->getUpcomingTrainings($player->team, 5),
+
+            'upcoming_matches' => $this->getUpcomingMatches(3),
+        ];
+
+        return response()->json($stats);
     }
 
-    /**
-     * Get player statistics
-     */
-    public function getPlayerStats()
+    // ========== HELPER METHODS ==========
+
+    private function getOverallAttendanceRate()
     {
-        try {
-            $user = auth()->user();
-            $player = Player::where('user_id', $user->id)->first();
+        $total = Attendance::count();
+        if ($total === 0) return 0;
 
-            if (!$player) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Joueur non trouvé'
-                ], 404);
-            }
+        $present = Attendance::whereIn('status', ['present', 'late'])->count();
+        return round(($present / $total) * 100, 2);
+    }
 
-            $trainingsAttended = Attendance::where('player_id', $player->id)
-                ->where('status', 'present')
-                ->count();
+    private function getTeamAttendanceRate($playerIds, $trainingIds)
+    {
+        $total = Attendance::whereIn('player_id', $playerIds)
+            ->whereIn('training_session_id', $trainingIds)
+            ->count();
+            
+        if ($total === 0) return 0;
 
-            $totalTrainings = Attendance::where('player_id', $player->id)->count();
-            $attendanceRate = $totalTrainings > 0 
-                ? round(($trainingsAttended / $totalTrainings) * 100, 1)
-                : 0;
+        $present = Attendance::whereIn('player_id', $playerIds)
+            ->whereIn('training_session_id', $trainingIds)
+            ->whereIn('status', ['present', 'late'])
+            ->count();
 
-            $avgPerformance = Attendance::where('player_id', $player->id)
-                ->whereNotNull('performance_score')
-                ->avg('performance_score') ?? 0;
+        return round(($present / $total) * 100, 2);
+    }
 
-            $upcomingMatches = Match::where('status', 'scheduled')
-                ->count();
+    private function getTeamAveragePerformance($playerIds, $trainingIds)
+    {
+        $avg = Attendance::whereIn('player_id', $playerIds)
+            ->whereIn('training_session_id', $trainingIds)
+            ->whereNotNull('performance_score')
+            ->avg('performance_score');
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'trainingsAttended' => $trainingsAttended,
-                    'attendanceRate' => $attendanceRate,
-                    'avgPerformance' => round($avgPerformance, 1),
-                    'upcomingMatches' => $upcomingMatches
-                ]
-            ]);
+        return $avg ? round($avg, 2) : 0;
+    }
 
-        } catch (\Exception $e) {
-            \Log::error('Player stats error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Erreur serveur'
-            ], 500);
+    private function getTeamsStats()
+    {
+        $teams = ['U18 Masculin', 'Seniors Féminin', 'Seniors Masculin', 'U18 Féminin', 'U15 Masculin', 'U15 Féminin'];
+        $teamsData = [];
+
+        foreach ($teams as $team) {
+            $teamsData[] = [
+                'name' => $team,
+                'players' => Player::where('team', $team)->count(),
+                'coach' => User::where('role', 'coach')->where('team', $team)->first()?->name ?? 'Non assigné',
+            ];
         }
+
+        return $teamsData;
+    }
+
+    private function getTopPlayersByTeam($team, $limit)
+    {
+        return Player::where('team', $team)
+            ->where('status', 'active')
+            ->with(['attendances' => function($query) {
+                $query->whereNotNull('performance_score');
+            }])
+            ->get()
+            ->map(function($player) {
+                return [
+                    'id' => $player->id,
+                    'name' => $player->full_name,
+                    'position' => $player->position,
+                    'jersey_number' => $player->jersey_number,
+                    'attendance_rate' => $player->getAttendanceRate(),
+                    'average_performance' => $player->getAveragePerformance(),
+                ];
+            })
+            ->sortByDesc('average_performance')
+            ->take($limit)
+            ->values();
+    }
+
+    private function getRecentPerformances($playerId, $limit)
+    {
+        return Attendance::where('player_id', $playerId)
+            ->whereNotNull('performance_score')
+            ->with('trainingSession')
+            ->orderBy('created_at', 'desc')
+            ->limit($limit)
+            ->get()
+            ->map(function($attendance) {
+                return [
+                    'date' => $attendance->trainingSession->date->format('d/m/Y'),
+                    'score' => $attendance->performance_score,
+                    'training' => $attendance->trainingSession->title,
+                ];
+            });
+    }
+
+    private function getUpcomingTrainings($team, $limit)
+    {
+        return TrainingSession::where('status', 'scheduled')
+            ->whereHas('coach', function($query) use ($team) {
+                $query->where('team', $team);
+            })
+            ->where('date', '>=', now())
+            ->orderBy('date', 'asc')
+            ->limit($limit)
+            ->get()
+            ->map(function($training) {
+                return [
+                    'id' => $training->id,
+                    'title' => $training->title,
+                    'date' => $training->date->format('Y-m-d'),
+                    'time' => $training->start_time,
+                    'location' => $training->location,
+                ];
+            });
+    }
+
+    private function getUpcomingMatches($limit)
+    {
+        return Matchs::where('status', 'scheduled')
+            ->where('match_date', '>=', now())
+            ->orderBy('match_date', 'asc')
+            ->limit($limit)
+            ->get()
+            ->map(function($match) {
+                return [
+                    'id' => $match->id,
+                    'opponent_team' => $match->opponent_team,
+                    'date' => $match->match_date->format('Y-m-d'),
+                    'time' => $match->match_time,
+                    'location' => $match->location,
+                ];
+            });
     }
 }

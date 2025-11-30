@@ -1,7 +1,5 @@
 <?php
-// routes/api.php
 
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\PlayerController;
@@ -10,12 +8,6 @@ use App\Http\Controllers\MatchController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\CoachController;
-
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-*/
 
 // Public routes
 Route::post('login', [AuthController::class, 'login']);
@@ -30,23 +22,34 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/profile', [AuthController::class, 'updateProfile']);
     Route::put('/change-password', [AuthController::class, 'changePassword']);
 
-    // Dashboard - All authenticated users
-    Route::get('dashboard/stats', [DashboardController::class, 'getStats']);
-    Route::get('dashboard/attendance-report', [DashboardController::class, 'getAttendanceReport']);
-    Route::get('dashboard/performance-report', [DashboardController::class, 'getPerformanceReport']);
-    Route::get('dashboard/match-stats', [DashboardController::class, 'getMatchStats']);
-    Route::get('dashboard/top-players', [DashboardController::class, 'getTopPlayers']);
-
-    // Players - Admin and Coach can manage, Players can view
-    Route::get('players', [PlayerController::class, 'index']);
-    Route::get('players/{id}', [PlayerController::class, 'show']);
-
-    Route::middleware('role:admin,coach')->group(function () {
-        Route::post('players', [PlayerController::class, 'store']);
-        Route::post('players/{id}', [PlayerController::class, 'update']); // POST for file upload
-        Route::delete('players/{id}', [PlayerController::class, 'destroy']);
+    // ✅ DASHBOARD ROUTES (NOUVEAU)
+    Route::prefix('dashboard')->group(function () {
+        // Admin Dashboard
+        Route::get('admin/stats', [DashboardController::class, 'getAdminStats'])
+            ->middleware('role:admin');
+        
+        // Coach Dashboard
+        Route::get('coach/stats', [DashboardController::class, 'getCoachStats'])
+            ->middleware('role:coach');
+        
+        // Player Dashboard
+        Route::get('player/stats', [DashboardController::class, 'getPlayerStats'])
+            ->middleware('role:player');
     });
 
+    // Players
+    Route::get('players', [PlayerController::class, 'index']);
+    Route::get('players/{id}', [PlayerController::class, 'show']); // ✅ IMPORTANT
+    
+    Route::middleware('role:admin,coach')->group(function () {
+        Route::post('players', [PlayerController::class, 'store']);
+        Route::put('players/{id}', [PlayerController::class, 'update']);
+    });
+    
+    Route::middleware('role:admin')->group(function () {
+        Route::delete('players/{id}', [PlayerController::class, 'destroy']);
+    });
+});
     // Training Sessions
     Route::get('trainings', [TrainingSessionController::class, 'index']);
     Route::get('trainings/{id}', [TrainingSessionController::class, 'show']);
@@ -91,7 +94,6 @@ Route::middleware('auth:api')->group(function () {
         Route::put('coaches/{id}', [CoachController::class, 'update']);
         Route::delete('coaches/{id}', [CoachController::class, 'destroy']);
     });
-});
 
 // Health check
 Route::get('health', function() {
