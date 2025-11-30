@@ -10,6 +10,7 @@ use App\Models\Player;
 use App\Models\TrainingSession;
 use App\Models\Attendance;
 use App\Models\Match;
+use App\Models\Matchs;
 
 class DashboardController extends Controller
 {
@@ -21,7 +22,7 @@ class DashboardController extends Controller
         try {
             $totalPlayers = Player::count();
             $totalTrainings = TrainingSession::count();
-            $totalMatches = Match::count();
+            $totalMatches = Matchs::count();
             
             // Calculate average attendance rate
             $attendanceData = Attendance::selectRaw('
@@ -302,7 +303,7 @@ class DashboardController extends Controller
                 ->whereNotNull('performance_score')
                 ->avg('performance_score') ?? 0;
 
-            $upcomingMatches = Match::where('status', 'scheduled')
+            $upcomingMatches = Matchs::where('status', 'scheduled')
                 ->count();
 
             return response()->json([
