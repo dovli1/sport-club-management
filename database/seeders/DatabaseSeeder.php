@@ -34,7 +34,7 @@ class DatabaseSeeder extends Seeder
             'Seniors Masculin',
             'U18 Féminin',
             'U15 Masculin',
-            'U15 Féminin',
+            'U15 Féminin',3333333.
         ];
 
         $coaches = [];
@@ -126,7 +126,7 @@ class DatabaseSeeder extends Seeder
                     'user_id' => $user->id,
                     'first_name' => $firstName,
                     'last_name' => $lastName,
-                    'date_of_birth' => now()->subYears($age),
+                    'age' => $age,
                     'position' => $position,
                     'jersey_number' => $playerIndex,
                     'team' => $team, // ✅ Équipe assignée

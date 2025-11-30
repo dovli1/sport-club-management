@@ -13,7 +13,7 @@ class Player extends Model
         'user_id',
         'first_name',
         'last_name',
-        'date_of_birth',
+        'age',
         'position',
         'jersey_number',
         'photo',
@@ -26,10 +26,10 @@ class Player extends Model
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date',
+        'age' => 'integer',
     ];
 
-    protected $appends = ['full_name', 'age'];
+    protected $appends = ['full_name'];
 
     // Relations
     public function user()
@@ -61,11 +61,6 @@ class Player extends Model
     public function getFullNameAttribute()
     {
         return "{$this->first_name} {$this->last_name}";
-    }
-
-    public function getAgeAttribute()
-    {
-        return $this->date_of_birth ? $this->date_of_birth->age : null;
     }
 
     // Helper methods
